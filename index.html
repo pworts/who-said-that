@@ -287,7 +287,9 @@ input, textarea { user-select: text; -webkit-user-select: text; font-size: 1rem;
 .kid-btn.on { background:rgba(6,214,160,0.22);border-color:var(--teal);filter:none;opacity:1; }
 
 /* RULES FAB + SHEET */
-.rules-fab { position:fixed;bottom:max(env(safe-area-inset-bottom),16px);right:14px;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.2);color:var(--cream);font-size:1.25rem;cursor:pointer;z-index:150;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px); }
+.rules-fab { position:fixed;bottom:max(env(safe-area-inset-bottom),16px);right:14px;width:48px;height:48px;border-radius:50%;background:repeating-linear-gradient(90deg,#f2f2f2 0 5px,#16161e 5px 10px);border:3px solid rgba(255,255,255,0.55);cursor:pointer;z-index:150;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,0.45); }
+.ref-stripe { display:inline-block;width:28px;height:13px;border-radius:3px;background:repeating-linear-gradient(90deg,#fff 0 4px,#16161e 4px 8px);vertical-align:middle;margin:0 6px; }
+.spark-card { display:flex;align-items:center;gap:12px;background:rgba(6,214,160,0.13);border:2px solid rgba(6,214,160,0.4);border-radius:14px;padding:13px 16px;width:100%;max-width:360px;margin-top:10px;color:var(--cream);animation:pop-in 0.4s ease;text-align:left; }
 .rules-list { list-style:none;padding:0;margin:0 0 10px; }
 .rules-list li { padding:10px 4px;font-size:0.95rem;font-weight:700;line-height:1.45;display:flex;gap:10px;border-bottom:1px solid rgba(255,255,255,0.07); }
 
@@ -564,12 +566,12 @@ input, textarea { user-select: text; -webkit-user-select: text; font-size: 1rem;
   </div>
 </div>
 
-<button class="rules-fab" onclick="openRules()" title="House Rules">📜</button>
+<button class="rules-fab" onclick="openRules()" title="Referee's Rules"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="#FFD166" d="M8.5 7.5h9.2l2.8 2.8-2.1 2.1h-1.3a6.2 6.2 0 1 1-10-4.4l1.4-.5z"/><circle cx="9.2" cy="14.6" r="2.3" fill="#16161e"/></svg></button>
 
 <!-- ===================== HOUSE RULES OVERLAY ===================== -->
 <div id="rules-overlay" class="overlay">
   <div class="sheet">
-    <div class="sheet-title">📜 House Rules</div>
+    <div class="sheet-title"><span class="ref-stripe"></span>Referee's Rules<span class="ref-stripe"></span></div>
     <ul class="rules-list">
       <li>💛 No teasing about Honest answers — ever.</li>
       <li>🤫 What is shared in the game stays kind.</li>
@@ -609,12 +611,25 @@ const EMOJI_UNLOCKS = [
 
 // Achievement badges — all earnable WITHOUT winning
 const BADGES = [
-  { id: 'sharp_eye',   emoji: '🎯', name: 'Sharp Eye',          desc: 'Got a perfect round as the guesser',  check: ps => (ps.perfectRounds || 0) >= 1 },
-  { id: 'ghost',       emoji: '🥷', name: 'Master of Disguise', desc: 'Fooled the guesser 5 times',          check: ps => (ps.timesAnswerSubmitted - ps.timesAnswerCorrect) >= 5 },
-  { id: 'quick_draw',  emoji: '⚡', name: 'Quick Draw',         desc: 'Submitted 5 lightning-fast answers',  check: ps => (ps.fastAnswers || 0) >= 5 },
-  { id: 'brave_heart', emoji: '💛', name: 'Brave Heart',        desc: 'Answered 10 Honest prompts',          check: ps => (ps.honestAnswers || 0) >= 10 },
-  { id: 'marathoner',  emoji: '🏃', name: 'Marathoner',         desc: 'Played 10 games',                     check: ps => ps.gamesPlayed >= 10 },
+  { id: 'sharp_eye',  emoji: '🎯', name: 'Sharp Eye',          desc: 'Got a perfect round as the guesser', check: ps => (ps.perfectRounds || 0) >= 1 },
+  { id: 'ghost',      emoji: '🥷', name: 'Master of Disguise', desc: 'Fooled the guesser 5 times',         check: ps => (ps.timesAnswerSubmitted - ps.timesAnswerCorrect) >= 5 },
+  { id: 'quick_draw', emoji: '⚡', name: 'Quick Draw',         desc: 'Submitted 5 lightning-fast answers', check: ps => (ps.fastAnswers || 0) >= 5 },
 ];
+
+// Status titles — held by one player at a time, can change hands
+// 🏆 Family Champ: current all-time wins leader
+// ❤️‍🩹 Heart & Hustle: lowest total points all time, still showing up
+function computeStatusHolders(stats) {
+  let champ = null, best = 0, heart = null, low = Infinity;
+  Object.entries(stats.players).forEach(([n, ps]) => {
+    if (ps.wins > best) { best = ps.wins; champ = n; }
+    if (ps.gamesPlayed >= 1) {
+      const tp = ps.totalPoints || 0;
+      if (tp < low) { low = tp; heart = n; }
+    }
+  });
+  return { champ: best > 0 ? champ : null, heart };
+}
 
 const TYPE_CONFIG = {
   silly:   { label: 'SILLY',    icon: '■',  hdr: '#FFD166', emoji: '😄' },
@@ -741,6 +756,7 @@ function resetState() {
     guesses: [],   // playerIdx per shuffled slot (-1 = unassigned)
     pickerTarget: -1,
     newBadges: [],
+    sparkShown: false,
     game: { guess: {}, sneak: {}, fast: {} }, // this-session award tracking
   };
 }
@@ -1300,6 +1316,19 @@ function showRevealScreen() {
       enc.textContent = msg;
       document.getElementById('rv-bonus-area').appendChild(enc);
 
+      // Conversation spark — Honest rounds only, once per game, targets a missed guess
+      if (G.promptType === 'honest' && !G.sparkShown) {
+        const missed = G.shuffled.filter((a, idx) => G.guesses[idx] !== a.playerIdx);
+        if (missed.length) {
+          G.sparkShown = true;
+          const pick = missed[Math.floor(Math.random() * missed.length)];
+          const spark = document.createElement('div');
+          spark.className = 'spark-card';
+          spark.innerHTML = `<span style="font-size:1.5rem;flex-shrink:0">💬</span><div><div style="font-family:'Fredoka One',sans-serif;font-size:0.98rem">Dinner table moment</div><div style="font-size:0.87rem;opacity:0.88;font-weight:700;margin-top:3px">Ask ${esc(G.players[pick.playerIdx].name)} a little more about their answer.</div></div>`;
+          document.getElementById('rv-bonus-area').appendChild(spark);
+        }
+      }
+
       document.getElementById('continue-btn').style.display = '';
       return;
     }
@@ -1454,7 +1483,7 @@ function saveStatsObj(s) {
 
 function ensurePlayerStats(stats, name) {
   if (!stats.players[name]) {
-    stats.players[name] = { wins: 0, gamesPlayed: 0, roundsAsGuesser: 0, correctGuesses: 0, guessOpportunities: 0, timesAnswerCorrect: 0, timesAnswerSubmitted: 0, perfectRounds: 0, fastAnswers: 0, honestAnswers: 0, badges: [] };
+    stats.players[name] = { wins: 0, gamesPlayed: 0, roundsAsGuesser: 0, correctGuesses: 0, guessOpportunities: 0, timesAnswerCorrect: 0, timesAnswerSubmitted: 0, perfectRounds: 0, fastAnswers: 0, honestAnswers: 0, totalPoints: 0, badges: [] };
   }
   return stats.players[name];
 }
@@ -1524,11 +1553,21 @@ function updateRoundStats() {
 
 function saveGameResult(winner) {
   const stats = loadStats();
+  const prevChamp = computeStatusHolders(stats).champ;
   // Increment wins
   const ws = ensurePlayerStats(stats, winner.name);
   ws.wins++;
-  // Increment gamesPlayed for all
-  G.players.forEach(p => { ensurePlayerStats(stats, p.name).gamesPlayed++; });
+  // Increment gamesPlayed + accumulate total points for all
+  G.players.forEach(p => {
+    const ps = ensurePlayerStats(stats, p.name);
+    ps.gamesPlayed++;
+    ps.totalPoints = (ps.totalPoints || 0) + p.score;
+  });
+  // Announce a change of all-time wins leadership
+  const newChamp = computeStatusHolders(stats).champ;
+  if (newChamp && newChamp !== prevChamp) {
+    G.newBadges.push({ player: newChamp, badge: { emoji: '🏆', name: 'Family Champ', desc: 'New all-time wins leader!' } });
+  }
 
   // Session record
   const session = {
@@ -1552,6 +1591,7 @@ function navStats() {
 
 function renderStatsScreen() {
   const stats = loadStats();
+  const holders = computeStatusHolders(stats);
   const playerContainer = document.getElementById('stats-player-blocks');
   playerContainer.innerHTML = '';
 
@@ -1581,9 +1621,9 @@ function renderStatsScreen() {
         <div class="stat-cell"><div class="stat-cell-val">${ps.wins}</div><div class="stat-cell-lbl">Wins</div></div>
         <div class="stat-cell"><div class="stat-cell-val">${guessAcc}%</div><div class="stat-cell-lbl">Guess Accuracy</div></div>
         <div class="stat-cell"><div class="stat-cell-val">${mysteryScore}%</div><div class="stat-cell-lbl">Mystery Score</div></div>
-        <div class="stat-cell"><div class="stat-cell-val">${ps.roundsAsGuesser}</div><div class="stat-cell-lbl">Rounds as Guesser</div></div>
+        <div class="stat-cell"><div class="stat-cell-val">${ps.totalPoints || 0}</div><div class="stat-cell-lbl">Total Points</div></div>
       </div>
-      <div style="margin-top:10px;text-align:center">${(ps.badges || []).map(id => { const b = BADGES.find(x => x.id === id); return b ? `<span class="badge-chip">${b.emoji} ${b.name}</span>` : ''; }).join('')}${emoji ? `<span class="badge-chip">${emoji} Win badge</span>` : ''}${(!(ps.badges || []).length && !emoji) ? '<span style="font-size:0.8rem;opacity:0.42">Play to earn badges ⭐</span>' : ''}</div>
+      <div style="margin-top:10px;text-align:center">${holders.champ === name ? '<span class="badge-chip">🏆 Family Champ</span>' : ''}${holders.heart === name ? '<span class="badge-chip">❤️‍🩹 Heart &amp; Hustle</span>' : ''}${(ps.badges || []).map(id => { const b = BADGES.find(x => x.id === id); return b ? `<span class="badge-chip">${b.emoji} ${b.name}</span>` : ''; }).join('')}${emoji ? `<span class="badge-chip">${emoji} Win badge</span>` : ''}${(!(ps.badges || []).length && !emoji && holders.champ !== name && holders.heart !== name) ? '<span style="font-size:0.8rem;opacity:0.42">Play to earn badges ⭐</span>' : ''}</div>
     `;
     playerContainer.appendChild(block);
   });
