@@ -281,6 +281,31 @@ input, textarea { user-select: text; -webkit-user-select: text; font-size: 1rem;
 .winner-name { font-family: 'Fredoka One', sans-serif; font-size: clamp(2.2rem, 9vw, 3rem); color: var(--yellow); line-height: 1.2; text-align: center; }
 .winner-label { font-size: 0.9rem; opacity: 0.55; font-weight: 800; text-align: center; }
 .divider { width: 100%; max-width: 360px; height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
+
+/* KID MODE BUTTON */
+.kid-btn { width:38px;height:38px;border-radius:10px;border:2px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);font-size:1.1rem;cursor:pointer;flex-shrink:0;transition:all 0.15s;filter:grayscale(1);opacity:0.5;display:flex;align-items:center;justify-content:center; }
+.kid-btn.on { background:rgba(6,214,160,0.22);border-color:var(--teal);filter:none;opacity:1; }
+
+/* RULES FAB + SHEET */
+.rules-fab { position:fixed;bottom:max(env(safe-area-inset-bottom),16px);right:14px;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.2);color:var(--cream);font-size:1.25rem;cursor:pointer;z-index:150;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px); }
+.rules-list { list-style:none;padding:0;margin:0 0 10px; }
+.rules-list li { padding:10px 4px;font-size:0.95rem;font-weight:700;line-height:1.45;display:flex;gap:10px;border-bottom:1px solid rgba(255,255,255,0.07); }
+
+/* ENCOURAGEMENT */
+.encourage { width:100%;max-width:360px;text-align:center;font-size:1.05rem;font-weight:800;color:var(--yellow);padding:12px 14px;background:rgba(255,209,102,0.1);border-radius:13px;margin-top:10px;animation:pop-in 0.4s ease; }
+
+/* BADGE BANNERS */
+.badge-banner { display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#9B5DE5,#118AB2);border-radius:14px;padding:13px 16px;width:100%;max-width:360px;margin-bottom:10px;color:white;animation:pop-in 0.4s ease; }
+.badge-banner .be { font-size:1.7rem; }
+.badge-banner .bt { font-family:'Fredoka One',sans-serif;font-size:0.98rem; }
+.badge-banner .bd { font-size:0.78rem;opacity:0.75;font-weight:700; }
+
+/* AWARDS */
+.award-row { display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.07);border-radius:13px;padding:12px 16px;width:100%;max-width:360px;margin-bottom:8px; }
+.award-emoji { font-size:1.6rem;flex-shrink:0; }
+.award-title { font-size:0.78rem;font-weight:900;text-transform:uppercase;letter-spacing:0.07em;opacity:0.55; }
+.award-name { font-size:1.02rem;font-weight:800; }
+.badge-chip { display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,0.08);border-radius:16px;padding:4px 10px;font-size:0.78rem;font-weight:800;margin:3px 3px 0 0; }
 </style>
 </head>
 <body>
@@ -474,6 +499,7 @@ input, textarea { user-select: text; -webkit-user-select: text; font-size: 1rem;
   </div>
   <div class="t-title">Scoreboard</div>
   <span class="sp"></span>
+  <div id="sb-badge-banners"></div>
   <div id="sb-scores"></div>
   <span class="sp-lg"></span>
   <button class="btn btn-orange" onclick="nextRound()">Next Round →</button>
@@ -488,6 +514,10 @@ input, textarea { user-select: text; -webkit-user-select: text; font-size: 1rem;
   <div class="winner-label">WINNER</div>
   <div class="winner-name" id="go-winner-name"></div>
   <span class="sp-lg"></span>
+  <div id="go-badge-banners"></div>
+  <p class="section-label">Tonight's Awards</p>
+  <div id="go-awards"></div>
+  <span class="sp"></span>
   <p class="section-label">Final Scores</p>
   <div id="go-final-scores"></div>
   <span class="sp-lg"></span>
@@ -534,6 +564,23 @@ input, textarea { user-select: text; -webkit-user-select: text; font-size: 1rem;
   </div>
 </div>
 
+<button class="rules-fab" onclick="openRules()" title="House Rules">📜</button>
+
+<!-- ===================== HOUSE RULES OVERLAY ===================== -->
+<div id="rules-overlay" class="overlay">
+  <div class="sheet">
+    <div class="sheet-title">📜 House Rules</div>
+    <ul class="rules-list">
+      <li>💛 No teasing about Honest answers — ever.</li>
+      <li>🤫 What is shared in the game stays kind.</li>
+      <li>🎨 Creative and silly answers are always welcome.</li>
+      <li>👂 Listen to every answer all the way through.</li>
+      <li>🎉 Cheer for good guesses and great disguises.</li>
+    </ul>
+    <button class="btn btn-orange" onclick="closeRules()">Back to the Game</button>
+  </div>
+</div>
+
 <!-- ===================== JAVASCRIPT ===================== -->
 <script>
 'use strict';
@@ -543,6 +590,7 @@ input, textarea { user-select: text; -webkit-user-select: text; font-size: 1rem;
    ============================================================ */
 const TIMER_SECS = 45;
 const CIRCUMFERENCE = 264; // 2*pi*r where r=42
+const KID_TIMER_SECS = 60;  // Kid Mode: +15s
 
 const AVATAR_COLORS = [
   '#FF6B35','#FFD166','#06D6A0','#EF476F',
@@ -557,6 +605,15 @@ const EMOJI_UNLOCKS = [
   { wins: 10, emoji: '🦁' },
   { wins: 15, emoji: '🐉' },
   { wins: 25, emoji: '💎' },
+];
+
+// Achievement badges — all earnable WITHOUT winning
+const BADGES = [
+  { id: 'sharp_eye',   emoji: '🎯', name: 'Sharp Eye',          desc: 'Got a perfect round as the guesser',  check: ps => (ps.perfectRounds || 0) >= 1 },
+  { id: 'ghost',       emoji: '🥷', name: 'Master of Disguise', desc: 'Fooled the guesser 5 times',          check: ps => (ps.timesAnswerSubmitted - ps.timesAnswerCorrect) >= 5 },
+  { id: 'quick_draw',  emoji: '⚡', name: 'Quick Draw',         desc: 'Submitted 5 lightning-fast answers',  check: ps => (ps.fastAnswers || 0) >= 5 },
+  { id: 'brave_heart', emoji: '💛', name: 'Brave Heart',        desc: 'Answered 10 Honest prompts',          check: ps => (ps.honestAnswers || 0) >= 10 },
+  { id: 'marathoner',  emoji: '🏃', name: 'Marathoner',         desc: 'Played 10 games',                     check: ps => ps.gamesPlayed >= 10 },
 ];
 
 const TYPE_CONFIG = {
@@ -659,9 +716,13 @@ let playerCount = 0;
 let statsBackScreen = 's-welcome';
 let colorPickerTarget = -1; // which player row index is picking color
 let playerColors = []; // color index per player row
+let playerKidMode = []; // kid mode flag per player row
 
 let timerInterval = null;
-let timerStartTime = null;
+let timerRemaining = 0;
+let timerElapsed = 0;
+let timerTotal = TIMER_SECS;
+let rulesPausedTimer = false;
 let speedThreshold = 12; // seconds for speed badge
 
 function resetState() {
@@ -679,6 +740,8 @@ function resetState() {
     shuffled: [],  // {playerIdx, text, fast}
     guesses: [],   // playerIdx per shuffled slot (-1 = unassigned)
     pickerTarget: -1,
+    newBadges: [],
+    game: { guess: {}, sneak: {}, fast: {} }, // this-session award tracking
   };
 }
 
@@ -696,6 +759,7 @@ window.addEventListener('popstate', () => history.pushState(null, '', location.h
 
 document.getElementById('picker-overlay').addEventListener('click', function(e) { if (e.target === this) closePicker(); });
 document.getElementById('color-overlay').addEventListener('click', function(e) { if (e.target === this) closeColorPicker(); });
+document.getElementById('rules-overlay').addEventListener('click', function(e) { if (e.target === this) closeRules(); });
 
 /* ============================================================
    SETUP
@@ -703,6 +767,7 @@ document.getElementById('color-overlay').addEventListener('click', function(e) {
 function goToSetup() {
   playerCount = 0;
   playerColors = [];
+  playerKidMode = [];
   document.getElementById('player-list').innerHTML = '';
   addPlayerField(); addPlayerField(); addPlayerField();
   selectTarget(selectedTarget);
@@ -713,6 +778,7 @@ function addPlayerField() {
   if (playerCount >= 8) return;
   const idx = playerCount;
   playerColors[idx] = idx % AVATAR_COLORS.length;
+  playerKidMode[idx] = false;
   playerCount++;
   const list = document.getElementById('player-list');
   const row = document.createElement('div');
@@ -722,6 +788,7 @@ function addPlayerField() {
     <button class="color-pick-btn" id="cpb-${idx}" onclick="openColorPicker(${idx})"
       style="background:${AVATAR_COLORS[playerColors[idx]]}" title="Pick color"></button>
     <input class="player-input" type="text" placeholder="Player ${idx+1}" inputmode="text" autocomplete="off" autocorrect="off">
+    <button class="kid-btn" id="kb-${idx}" onclick="toggleKidMode(${idx})" title="Kid Mode: extra answer time">🧒</button>
     <button class="remove-btn" onclick="removePlayerField(this)">×</button>
   `;
   list.appendChild(row);
@@ -739,11 +806,14 @@ function removePlayerField(btn) {
   syncRemoveButtons();
   renumberPlaceholders();
   playerColors.splice(oldIdx, 1);
+  playerKidMode.splice(oldIdx, 1);
   // re-index remaining rows
   document.querySelectorAll('#player-list .player-row').forEach((r, i) => {
     r.dataset.idx = i;
     const cpb = r.querySelector('.color-pick-btn');
     if (cpb) { cpb.id = `cpb-${i}`; cpb.setAttribute('onclick', `openColorPicker(${i})`); }
+    const kb = r.querySelector('.kid-btn');
+    if (kb) { kb.id = `kb-${i}`; kb.setAttribute('onclick', `toggleKidMode(${i})`); kb.classList.toggle('on', !!playerKidMode[i]); }
     const rb = r.querySelector('.remove-btn');
     if (rb) rb.setAttribute('onclick', `removePlayerField(this)`);
   });
@@ -760,6 +830,12 @@ function renumberPlaceholders() {
   });
 }
 
+function toggleKidMode(idx) {
+  playerKidMode[idx] = !playerKidMode[idx];
+  const kb = document.getElementById(`kb-${idx}`);
+  if (kb) kb.classList.toggle('on', playerKidMode[idx]);
+}
+
 function selectTarget(n) {
   selectedTarget = n;
   [5,7,11].forEach(v => document.getElementById(`opt-${v}`).classList.toggle('selected', v === n));
@@ -770,7 +846,7 @@ function startGame() {
   const players = [];
   rows.forEach((row, i) => {
     const v = row.querySelector('.player-input').value.trim();
-    if (v) players.push({ name: v, colorIdx: playerColors[parseInt(row.dataset.idx)] || i, score: 0 });
+    if (v) players.push({ name: v, colorIdx: playerColors[parseInt(row.dataset.idx)] || i, kidMode: !!playerKidMode[parseInt(row.dataset.idx)], score: 0 });
   });
   if (players.length < 3) { alert('You need at least 3 players!'); return; }
   resetState();
@@ -925,7 +1001,7 @@ function showAnswerInput() {
   const total = G.nonGuessers.length;
   const current = G.collectIdx + 1;
 
-  document.getElementById('ans-player-chip').textContent = player.name;
+  document.getElementById('ans-player-chip').textContent = player.name + (player.kidMode ? ' 🧒' : '');
   document.getElementById('ans-progress-lbl').textContent = `${current} of ${total}`;
   document.getElementById('ans-prompt-mini').textContent = G.prompt;
 
@@ -934,28 +1010,42 @@ function showAnswerInput() {
   document.getElementById('submit-btn').disabled = false;
 
   showScreen('s-answer');
-  startTimer();
+  startTimer(player.kidMode ? KID_TIMER_SECS : TIMER_SECS);
   setTimeout(() => ta.focus(), 350);
 }
 
 /* ============================================================
    TIMER
    ============================================================ */
-function startTimer() {
+function startTimer(total) {
   clearTimer();
-  timerStartTime = Date.now();
-  let remaining = TIMER_SECS;
-  updateTimerDisplay(remaining);
+  timerTotal = total || TIMER_SECS;
+  timerRemaining = timerTotal;
+  timerElapsed = 0;
+  updateTimerDisplay(timerRemaining);
+  runTimerInterval();
+}
 
+function runTimerInterval() {
   timerInterval = setInterval(() => {
-    remaining--;
-    updateTimerDisplay(remaining);
-    if (remaining <= 5 && navigator.vibrate) navigator.vibrate(40);
-    if (remaining <= 0) {
+    timerRemaining--;
+    timerElapsed++;
+    updateTimerDisplay(timerRemaining);
+    if (timerRemaining <= 5 && navigator.vibrate) navigator.vibrate(40);
+    if (timerRemaining <= 0) {
       clearTimer();
       autoSubmitAnswer();
     }
   }, 1000);
+}
+
+function pauseTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; return true; }
+  return false;
+}
+
+function resumeTimer() {
+  if (!timerInterval && timerRemaining > 0) runTimerInterval();
 }
 
 function clearTimer() {
@@ -963,7 +1053,7 @@ function clearTimer() {
 }
 
 function getElapsedSecs() {
-  return timerStartTime ? Math.floor((Date.now() - timerStartTime) / 1000) : 99;
+  return timerElapsed;
 }
 
 function updateTimerDisplay(remaining) {
@@ -971,7 +1061,7 @@ function updateTimerDisplay(remaining) {
   const ring = document.getElementById('timer-ring');
   if (!numEl || !ring) return;
   numEl.textContent = remaining;
-  const offset = CIRCUMFERENCE * (1 - remaining / TIMER_SECS);
+  const offset = CIRCUMFERENCE * (1 - remaining / timerTotal);
   ring.style.strokeDashoffset = offset;
   if (remaining <= 10) {
     ring.style.stroke = 'var(--pink)';
@@ -1002,7 +1092,7 @@ function submitAnswer(isAuto = false) {
   if (!text && !isAuto) {
     ta.style.borderColor = 'var(--pink)';
     setTimeout(() => ta.style.borderColor = '', 1200);
-    startTimer(); // restart
+    resumeTimer();
     return;
   }
   const finalText = text || '(passed)';
@@ -1197,6 +1287,19 @@ function showRevealScreen() {
       const chip = document.getElementById('rv-pts-chip');
       chip.textContent = `+${pointsEarned} pt${pointsEarned !== 1 ? 's' : ''} for ${G.players[G.guesserIdx].name}`;
       chip.style.display = '';
+
+      // Effort-focused encouragement
+      const ratio = G.shuffled.length ? pointsEarned / G.shuffled.length : 0;
+      let msg;
+      if (ratio === 1) msg = '🎯 Perfect round! You really know your people!';
+      else if (ratio >= 0.5) msg = '👏 Great guessing — strong read on the room!';
+      else if (ratio > 0) msg = '💪 Good guesses — keep hunting for clues!';
+      else msg = '🕵️ Everyone was sneaky this round — you will crack the case next time!';
+      const enc = document.createElement('div');
+      enc.className = 'encourage';
+      enc.textContent = msg;
+      document.getElementById('rv-bonus-area').appendChild(enc);
+
       document.getElementById('continue-btn').style.display = '';
       return;
     }
@@ -1220,6 +1323,7 @@ function afterReveal() {
 }
 
 function showScoreboard() {
+  renderBadgeBanners('sb-badge-banners');
   document.getElementById('sb-round-chip').textContent = `After Round ${G.round}`;
   document.getElementById('sb-target-chip').textContent = `First to ${G.targetScore}`;
   const sorted = [...G.players].sort((a,b) => b.score - a.score);
@@ -1269,6 +1373,8 @@ function renderMiniScoreboard(id) {
    ============================================================ */
 function showGameOver(winner) {
   saveGameResult(winner);
+  renderBadgeBanners('go-badge-banners');
+  renderAwards();
   document.getElementById('go-winner-name').textContent = winner.name;
   const sorted = [...G.players].sort((a,b) => b.score - a.score);
   const container = document.getElementById('go-final-scores');
@@ -1284,6 +1390,52 @@ function showGameOver(winner) {
   });
   showScreen('s-gameover');
   launchConfetti();
+}
+
+function renderAwards() {
+  const c = document.getElementById('go-awards');
+  c.innerHTML = '';
+  const awards = [];
+
+  // Best Detective: highest guess accuracy this game
+  let bestIdx = -1, bestAcc = -1;
+  Object.entries(G.game.guess).forEach(([idx, g]) => {
+    if (g.o > 0) { const acc = g.c / g.o; if (acc > bestAcc) { bestAcc = acc; bestIdx = +idx; } }
+  });
+  if (bestIdx >= 0) awards.push({ emoji: '🕵️', title: 'Best Detective', name: `${G.players[bestIdx].name} — ${Math.round(bestAcc * 100)}% correct` });
+
+  // Sneakiest Writer: lowest identification rate this game
+  let snIdx = -1, snRate = 2;
+  Object.entries(G.game.sneak).forEach(([idx, s]) => {
+    if (s.sub > 0) { const rate = s.id / s.sub; if (rate < snRate) { snRate = rate; snIdx = +idx; } }
+  });
+  if (snIdx >= 0) awards.push({ emoji: '🥷', title: 'Sneakiest Writer', name: `${G.players[snIdx].name} — fooled the guesser ${Math.round((1 - snRate) * 100)}% of the time` });
+
+  // Speedster: most fast answers this game
+  let fsIdx = -1, fsCount = 0;
+  Object.entries(G.game.fast).forEach(([idx, n]) => { if (n > fsCount) { fsCount = n; fsIdx = +idx; } });
+  if (fsIdx >= 0) awards.push({ emoji: '⚡', title: 'Speedster', name: `${G.players[fsIdx].name} — ${fsCount} lightning answer${fsCount !== 1 ? 's' : ''}` });
+
+  awards.forEach(a => {
+    const row = document.createElement('div');
+    row.className = 'award-row';
+    row.innerHTML = `<span class="award-emoji">${a.emoji}</span><div><div class="award-title">${a.title}</div><div class="award-name">${esc(a.name)}</div></div>`;
+    c.appendChild(row);
+  });
+  if (!awards.length) c.innerHTML = '<p style="text-align:center;opacity:0.4;font-size:0.85rem">No awards this game.</p>';
+}
+
+/* ============================================================
+   HOUSE RULES (pauses answer timer while open)
+   ============================================================ */
+function openRules() {
+  rulesPausedTimer = pauseTimer();
+  document.getElementById('rules-overlay').classList.add('open');
+}
+
+function closeRules() {
+  document.getElementById('rules-overlay').classList.remove('open');
+  if (rulesPausedTimer) { rulesPausedTimer = false; resumeTimer(); }
 }
 
 /* ============================================================
@@ -1302,9 +1454,35 @@ function saveStatsObj(s) {
 
 function ensurePlayerStats(stats, name) {
   if (!stats.players[name]) {
-    stats.players[name] = { wins: 0, gamesPlayed: 0, roundsAsGuesser: 0, correctGuesses: 0, guessOpportunities: 0, timesAnswerCorrect: 0, timesAnswerSubmitted: 0 };
+    stats.players[name] = { wins: 0, gamesPlayed: 0, roundsAsGuesser: 0, correctGuesses: 0, guessOpportunities: 0, timesAnswerCorrect: 0, timesAnswerSubmitted: 0, perfectRounds: 0, fastAnswers: 0, honestAnswers: 0, badges: [] };
   }
   return stats.players[name];
+}
+
+function checkNewBadges(stats) {
+  G.players.forEach(p => {
+    const ps = ensurePlayerStats(stats, p.name);
+    if (!ps.badges) ps.badges = [];
+    BADGES.forEach(b => {
+      if (!ps.badges.includes(b.id) && b.check(ps)) {
+        ps.badges.push(b.id);
+        G.newBadges.push({ player: p.name, badge: b });
+      }
+    });
+  });
+}
+
+function renderBadgeBanners(containerId) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  c.innerHTML = '';
+  G.newBadges.forEach(nb => {
+    const div = document.createElement('div');
+    div.className = 'badge-banner';
+    div.innerHTML = `<span class="be">${nb.badge.emoji}</span><div><div class="bt">${esc(nb.player)} earned ${nb.badge.name}!</div><div class="bd">${nb.badge.desc}</div></div>`;
+    c.appendChild(div);
+  });
+  G.newBadges = [];
 }
 
 function updateRoundStats() {
@@ -1316,15 +1494,31 @@ function updateRoundStats() {
   ps.correctGuesses += correct;
   ps.guessOpportunities += G.shuffled.length;
 
+  // Perfect round tracking (badge)
+  if (correct === G.shuffled.length && G.shuffled.length > 0) ps.perfectRounds = (ps.perfectRounds || 0) + 1;
+
+  // In-game award tracking: guesser accuracy
+  const gg = G.game.guess[G.guesserIdx] = G.game.guess[G.guesserIdx] || { c: 0, o: 0 };
+  gg.c += correct; gg.o += G.shuffled.length;
+
   G.nonGuessers.forEach((pIdx, ni) => {
     const p = G.players[pIdx];
     const ws = ensurePlayerStats(stats, p.name);
     ws.timesAnswerSubmitted++;
+    if (G.promptType === 'honest') ws.honestAnswers = (ws.honestAnswers || 0) + 1;
+    const ans = G.answers.find(a => a.playerIdx === pIdx);
+    if (ans && ans.fast) {
+      ws.fastAnswers = (ws.fastAnswers || 0) + 1;
+      G.game.fast[pIdx] = (G.game.fast[pIdx] || 0) + 1;
+    }
+    const sn = G.game.sneak[pIdx] = G.game.sneak[pIdx] || { id: 0, sub: 0 };
+    sn.sub++;
     // Was their answer correctly identified?
     const shuffledIdx = G.shuffled.findIndex(a => a.playerIdx === pIdx);
-    if (shuffledIdx >= 0 && G.guesses[shuffledIdx] === pIdx) ws.timesAnswerCorrect++;
+    if (shuffledIdx >= 0 && G.guesses[shuffledIdx] === pIdx) { ws.timesAnswerCorrect++; sn.id++; }
   });
 
+  checkNewBadges(stats);
   saveStatsObj(stats);
 }
 
@@ -1389,7 +1583,7 @@ function renderStatsScreen() {
         <div class="stat-cell"><div class="stat-cell-val">${mysteryScore}%</div><div class="stat-cell-lbl">Mystery Score</div></div>
         <div class="stat-cell"><div class="stat-cell-val">${ps.roundsAsGuesser}</div><div class="stat-cell-lbl">Rounds as Guesser</div></div>
       </div>
-      ${emoji ? `<div style="margin-top:10px;font-size:0.8rem;opacity:0.6;text-align:center">Earned badge: ${emoji}</div>` : `<div style="margin-top:10px;font-size:0.8rem;opacity:0.42;text-align:center">Win 1 game to earn a badge ⭐</div>`}
+      <div style="margin-top:10px;text-align:center">${(ps.badges || []).map(id => { const b = BADGES.find(x => x.id === id); return b ? `<span class="badge-chip">${b.emoji} ${b.name}</span>` : ''; }).join('')}${emoji ? `<span class="badge-chip">${emoji} Win badge</span>` : ''}${(!(ps.badges || []).length && !emoji) ? '<span style="font-size:0.8rem;opacity:0.42">Play to earn badges ⭐</span>' : ''}</div>
     `;
     playerContainer.appendChild(block);
   });
